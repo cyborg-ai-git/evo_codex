@@ -1,0 +1,13 @@
+---
+source: tui/src/chatwidget/tests/model_picker_tests.rs
+assertion_line: 90
+expression: "render_bottom_popup(&chat, 110)"
+---
+  Select mlx model
+  Select a model and effort. A provider change starts a new task.
+
+
+› 1. Qwen3.5-2B-4bit · none  On disk · loads on the first request
+  2. Qwen3.5-4B-4bit · none  Download 2.9 GiB · at least 6 GiB RAM · Apple Silicon / MLX
+
+  enter select · esc back

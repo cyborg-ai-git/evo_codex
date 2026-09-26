@@ -603,6 +603,7 @@ impl AppServerSession {
                     .request_typed::<ModelListResponse>(ClientRequest::ModelList {
                         request_id: model_request_id,
                         params: ModelListParams {
+                            model_provider: None,
                             cursor: None,
                             limit: None,
                             include_hidden: Some(true),
@@ -1718,7 +1719,7 @@ pub(crate) fn status_account_display_from_auth_mode(
     }
 }
 
-fn model_preset_from_api_model(model: ApiModel) -> ModelPreset {
+pub(crate) fn model_preset_from_api_model(model: ApiModel) -> ModelPreset {
     let upgrade = model.upgrade.map(|upgrade_id| {
         let upgrade_info = model.upgrade_info.clone();
         ModelUpgrade {

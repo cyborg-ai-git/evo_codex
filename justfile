@@ -1,9 +1,9 @@
 set working-directory := "codex-rs"
 set positional-arguments
 export CODEX_REPO_ROOT := justfile_directory()
-export JUST_SHELL := justfile_directory() / "scripts/just-shell.py"
-set shell := ["python3", "-c", 'import os, runpy; runpy.run_path(os.environ["JUST_SHELL"], run_name="__main__")']
-set windows-shell := ["python", "-c", 'import os, runpy; runpy.run_path(os.environ["JUST_SHELL"], run_name="__main__")']
+set shell := ["sh", "-cu"]
+set windows-shell := ["pwsh", "-NoLogo", "-NoProfile", "-CommandWithArgs"]
+args_expansion := if os_family() == "windows" { '@($args | Select-Object -Skip 1)' } else { '"$@"' }
 
 rust_min_stack := "8388608" # 8 MiB
 python := if os_family() == "windows" { "python" } else { "python3" }
@@ -15,11 +15,11 @@ help:
 # `codex`
 alias c := codex
 codex *args:
-    cargo run --bin codex -- {args}
+    cargo run --bin codex -- {{ args_expansion }}
 
 # `codex exec`
 exec *args:
-    cargo run --bin codex -- exec {args}
+    cargo run --bin codex -- exec {{ args_expansion }}
 
 # Start `codex exec-server` and run codex-tui.
 [no-cd]
@@ -30,35 +30,35 @@ tui-with-exec-server *args:
 
 # Run the CLI version of the file-search crate.
 file-search *args:
-    cargo run --bin codex-file-search -- {args}
+    cargo run --bin codex-file-search -- {{ args_expansion }}
 
 # Run the standalone code-mode host from source.
 code-mode-host *args:
-    cargo run --bin codex-code-mode-host -- {args}
+    cargo run --bin codex-code-mode-host -- {{ args_expansion }}
 
 # Assemble a local Codex package.
 [no-cd]
 assemble-codex-package *args:
-    {{ python }} {{ justfile_directory() }}/scripts/build_codex_package.py {args}
+    {{ python }} {{ justfile_directory() }}/scripts/build_codex_package.py {{ args_expansion }}
 
 # Build the CLI and run the app-server test client
 app-server-test-client *args:
     cargo build -p codex-cli
-    cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/codex {args}
+    cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/codex {{ args_expansion }}
 
-# Format the justfile, Rust, Bazel/Starlark, Python SDK code, and Python scripts.
+# Format the native Rust workspace without Node or Python.
 fmt:
-    @{{ python }} ../scripts/format.py
+    cargo fmt --all
 
 # Check formatting without modifying files.
 fmt-check:
-    @{{ python }} ../scripts/format.py --check
+    cargo fmt --all -- --check
 
 fix *args:
-    cargo clippy --fix --tests --allow-dirty {args}
+    cargo clippy --fix --tests --allow-dirty {{ args_expansion }}
 
 clippy *args:
-    cargo clippy --tests {args}
+    cargo clippy --tests {{ args_expansion }}
 
 [unix]
 install:
@@ -99,7 +99,7 @@ test-github-scripts:
 
 # Run explicit workspace benchmark targets.
 bench *args:
-    cargo bench --workspace --bench '*' {args}
+    cargo bench --workspace --bench '*' {{ args_expansion }}
 
 # Run benchmark targets once to ensure they start successfully.
 bench-smoke:
@@ -173,9 +173,23 @@ build-for-release:
 write-config-schema:
     cargo run -p codex-config-schema --bin codex-write-config-schema
 
-# Regenerate app-server protocol schemas and the Python SDK derived from them.
+# Regenerate app-server protocol schemas using the Rust fixture writer.
+[unix]
 write-app-server-schema *args:
-    {{ python }} app-server-protocol/scripts/write_schema_fixtures.py {args}
+    #!/bin/sh
+    set -eu
+    experimental=0
+    for arg in "$@"; do
+        case "$arg" in
+            --experimental) experimental=1 ;;
+            *) echo "Usage: just write-app-server-schema [--experimental]" >&2; exit 2 ;;
+        esac
+    done
+    CODEX_APP_SERVER_SCHEMA_ROOT="$PWD/app-server-protocol/schema" CODEX_APP_SERVER_SCHEMA_EXPERIMENTAL="$experimental" cargo nextest run -p codex-app-server-protocol --lib --run-ignored only -E 'test(=schema_fixtures_tests::write_schema_fixtures_from_env)'
+
+[windows]
+write-app-server-schema *args:
+    $env:CODEX_APP_SERVER_SCHEMA_ROOT = Join-Path (Get-Location) 'app-server-protocol/schema'; $env:CODEX_APP_SERVER_SCHEMA_EXPERIMENTAL = [int]($args -contains '--experimental'); cargo nextest run -p codex-app-server-protocol --lib --run-ignored only -E 'test(=schema_fixtures_tests::write_schema_fixtures_from_env)'
 
 [no-cd]
 write-hooks-schema:
@@ -193,7 +207,7 @@ argument-comment-lint *args:
 
 [no-cd]
 argument-comment-lint-from-source *args:
-    {{ python }} {{ justfile_directory() }}/tools/argument-comment-lint/run.py {args}
+    {{ python }} {{ justfile_directory() }}/tools/argument-comment-lint/run.py {{ args_expansion }}
 
 # Tail logs from the state SQLite database
 [unix]

@@ -1,4 +1,5 @@
 // Aggregates all former standalone integration tests as modules.
+mod deepseek;
 use codex_apply_patch::CODEX_CORE_APPLY_PATCH_ARG1;
 #[cfg(unix)]
 use codex_exec_server::CODEX_ARG0_EXEC_HELPER_ARG1;

@@ -741,6 +741,11 @@ See the Codex keymap documentation for supported actions and examples."
         let upgrade_version = crate::updates::get_upgrade_version(&config);
 
         let mut app = Self {
+            local_download: None,
+            hardware: config
+                .tui_fullscreen_transcript
+                .then(|| crate::hardware::HardwareMonitor::start(tui.frame_requester()))
+                .flatten(),
             feature_write_lock: Arc::default(),
             model_catalog,
             session_telemetry: session_telemetry.clone(),

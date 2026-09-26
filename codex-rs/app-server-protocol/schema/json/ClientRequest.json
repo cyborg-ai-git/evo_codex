@@ -2301,6 +2301,13 @@
             "integer",
             "null"
           ]
+        },
+        "modelProvider": {
+          "description": "Discover models for a configured provider without changing the active task.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "type": "object"

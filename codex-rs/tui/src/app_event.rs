@@ -278,6 +278,27 @@ pub(crate) struct AgentsOverviewThreadRefresh {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, IntoStaticStr)]
 pub(crate) enum AppEvent {
+    LocalDownloadProgress {
+        id: uuid::Uuid,
+        message: String,
+    },
+    LocalDownloadFinished {
+        id: uuid::Uuid,
+        result: Result<(), String>,
+    },
+    CancelLocalDownload(uuid::Uuid),
+    OpenProviderModels(String),
+    ProviderModelsLoaded {
+        request_id: uuid::Uuid,
+        provider: String,
+        result: Result<Vec<codex_protocol::openai_models::ModelPreset>, String>,
+    },
+    SelectProviderModel {
+        provider: String,
+        model: String,
+        effort: Option<codex_protocol::openai_models::ReasoningEffort>,
+        models: Arc<Vec<codex_protocol::openai_models::ModelPreset>>,
+    },
     OpenDaemonMenu,
     ConfirmDaemonUpdate(crate::update_action::DaemonUpdateSource),
     RunDaemonUpdate(crate::update_action::DaemonUpdateSource),

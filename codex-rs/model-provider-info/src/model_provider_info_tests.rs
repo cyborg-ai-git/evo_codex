@@ -849,3 +849,29 @@ model_catalog_url = "https://gateway.example/codex/catalog?token=catalog-secret"
         "https://gateway.example/v1"
     );
 }
+#[test]
+fn deepseek_override_keeps_credentials_separate_from_openai() {
+    let provider: ModelProviderInfo = toml::from_str(
+        "name = 'deepseek'\nbase_url = 'http://localhost:9999'\nexperimental_bearer_token = 'test-only'",
+    ).unwrap();
+    let original = built_in_model_providers(/*openai_base_url*/ None);
+    let merged = merge_configured_model_providers(
+        original.clone(),
+        [(DEEPSEEK_PROVIDER_ID.to_string(), provider)].into(),
+    )
+    .unwrap();
+    assert_eq!(
+        merged.get(OPENAI_PROVIDER_ID),
+        original.get(OPENAI_PROVIDER_ID)
+    );
+    let deepseek = &merged[DEEPSEEK_PROVIDER_ID];
+    assert_eq!(deepseek.env_key, None);
+    assert_eq!(
+        deepseek
+            .experimental_bearer_token
+            .as_deref()
+            .map(String::as_str),
+        Some("test-only")
+    );
+    assert!(!deepseek.requires_openai_auth);
+}

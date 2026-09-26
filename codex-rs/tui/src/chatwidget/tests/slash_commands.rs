@@ -429,6 +429,15 @@ async fn queued_settings_selection_applies_before_next_input() {
     complete_turn_with_message(&mut chat, "turn-1", Some("done"));
 
     let popup = render_bottom_popup(&chat, /*width*/ 80);
+    assert!(popup.contains("Select Model Provider"));
+    chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    while let Ok(event) = rx.try_recv() {
+        if let AppEvent::OpenProviderModels(provider) = event {
+            assert_eq!(provider, "openai");
+            chat.open_model_popup_with_presets(chat.model_catalog.try_list_models().unwrap());
+        }
+    }
+    let popup = render_bottom_popup(&chat, /*width*/ 80);
     assert!(
         popup.contains("Select Model and Effort"),
         "expected model menu to open; popup:\n{popup}"

@@ -31,6 +31,7 @@ async fn model_picker_refresh_updates_app_catalog_from_app_server() -> Result<()
     let thread_id = ThreadId::new();
     let mut session = test_thread_session(thread_id, test_path_buf("/tmp/project"));
     session.model = "gpt-5.5".to_string();
+    session.model_provider_id = app.config.model_provider_id.clone();
     app.primary_thread_id = Some(thread_id);
     app.active_thread_id = Some(thread_id);
     app.primary_session_configured = Some(session.clone());

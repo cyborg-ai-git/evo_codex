@@ -1,0 +1,16 @@
+---
+source: tui/src/chatwidget/tests/model_picker_tests.rs
+expression: "render_bottom_popup(&chat, 100)"
+---
+  Select deepseek model
+  Select a model and effort. A provider change starts a new task.
+
+
+› 1. DeepSeek Flash · low
+  2. DeepSeek Flash · high
+  3. DeepSeek Flash · max
+  4. DeepSeek V4 Pro · low
+  5. DeepSeek V4 Pro · high
+  6. DeepSeek V4 Pro · max
+
+  enter select · esc back

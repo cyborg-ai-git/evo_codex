@@ -2022,7 +2022,53 @@ impl App {
             }
             AppEvent::FetchModels { request_id } => {
                 if self.chat_widget.model_popup_request_is_current(request_id) {
-                    app_server.fetch_models(request_id, self.app_event_tx.clone());
+                    let provider = (app_server.thread_params_mode()
+                        == crate::app_server_session::ThreadParamsMode::Embedded)
+                        .then(|| self.chat_widget.config_ref().model_provider_id.clone());
+                    app_server.fetch_models(request_id, provider, self.app_event_tx.clone());
+                }
+            }
+            AppEvent::OpenProviderModels(provider) => {
+                self.fetch_provider_models(app_server, provider);
+            }
+            AppEvent::ProviderModelsLoaded { request_id, provider, result } => {
+                let is_current_provider = provider == self.chat_widget.config_ref().model_provider_id;
+                self.chat_widget.show_provider_models(request_id, provider, result);
+                if is_current_provider {
+                    self.model_catalog = self.chat_widget.model_catalog();
+                    app_server.set_available_models(self.model_catalog.try_list_models()?);
+                }
+            }
+            AppEvent::SelectProviderModel { provider, model, effort, models } => {
+                if self.local_download.is_some() {
+                    self.chat_widget.add_error_message("Finish or cancel the current model download first.".into());
+                } else if provider == "mlx" && codex_model_provider::is_downloadable_mlx_model(&model) {
+                    self.begin_local_download(app_server, provider, model, effort, models);
+                } else {
+                    self.select_provider_model(tui, app_server, provider, model, effort, models).await?;
+                }
+            }
+            AppEvent::LocalDownloadProgress { id, message } => {
+                if self.local_download.as_ref().is_some_and(|job| job.id == id) {
+                    self.chat_widget.update_local_download(id, message);
+                }
+            }
+            AppEvent::CancelLocalDownload(id) => {
+                if self.local_download.as_ref().is_some_and(|job| job.id == id) {
+                    self.local_download = None;
+                    self.chat_widget.finish_local_download();
+                    self.chat_widget.add_info_message("Download cancelled. Select the model again to resume.".into(), /*hint*/ None);
+                }
+            }
+            AppEvent::LocalDownloadFinished { id, result } => {
+                if self.local_download.as_ref().is_some_and(|job| job.id == id)
+                    && let Some(job) = self.local_download.take()
+                {
+                    self.chat_widget.finish_local_download();
+                    match result {
+                        Ok(()) => self.select_provider_model(tui, app_server, job.provider.clone(), job.model.clone(), job.effort.clone(), job.models.clone()).await?,
+                        Err(error) => self.chat_widget.add_error_message(format!("Model preparation failed: {error}")),
+                    }
                 }
             }
             AppEvent::ModelsLoaded { request_id, result } => {

@@ -232,6 +232,7 @@ mod managed_worktree_creation;
 mod misalignment_policy;
 mod model_defaults;
 mod new_session;
+mod provider_models;
 pub(crate) use new_session::has_launch_setting;
 mod clipboard;
 mod native_history;
@@ -556,6 +557,8 @@ struct InitialHistoryReplayBuffer {
 }
 
 pub(crate) struct App {
+    local_download: Option<provider_models::LocalDownload>,
+    hardware: Option<crate::hardware::HardwareMonitor>,
     feature_write_lock: Arc<tokio::sync::Mutex<()>>,
     model_catalog: Arc<ModelCatalog>,
     pub(crate) session_telemetry: SessionTelemetry,

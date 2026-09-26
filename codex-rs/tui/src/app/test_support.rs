@@ -32,6 +32,8 @@ pub(crate) async fn make_test_app() -> App {
 
     App {
         feature_write_lock: Arc::default(),
+        local_download: None,
+        hardware: None,
         model_catalog: chat_widget.model_catalog(),
         session_telemetry,
         app_event_tx,

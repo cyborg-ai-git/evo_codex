@@ -53,6 +53,9 @@ pub struct ModelProviderCapabilitiesReadResponse {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ModelListParams {
+    /// Discover models for a configured provider without changing the active task.
+    #[ts(optional = nullable)]
+    pub model_provider: Option<String>,
     /// Opaque pagination cursor returned by a previous call.
     #[ts(optional = nullable)]
     pub cursor: Option<String>,

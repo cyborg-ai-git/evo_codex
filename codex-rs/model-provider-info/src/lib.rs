@@ -639,6 +639,17 @@ pub const DEFAULT_OLLAMA_PORT: u16 = 11434;
 
 pub const LMSTUDIO_OSS_PROVIDER_ID: &str = "lmstudio";
 pub const OLLAMA_OSS_PROVIDER_ID: &str = "ollama";
+pub const DEEPSEEK_PROVIDER_ID: &str = "deepseek";
+pub const DEEPSEEK_PROVIDER_NAME: &str = "DeepSeek";
+pub const MLX_PROVIDER_ID: &str = "mlx";
+pub const MLX_PROVIDER_NAME: &str = "MLX";
+
+impl ModelProviderInfo {
+    /// Whether this provider uses the built-in local model metadata and discovery.
+    pub fn is_local_model_provider(&self) -> bool {
+        matches!(self.name.as_str(), "gpt-oss" | MLX_PROVIDER_NAME)
+    }
+}
 
 /// Built-in default provider list.
 pub fn built_in_model_providers(
@@ -650,12 +661,42 @@ pub fn built_in_model_providers(
     let amazon_bedrock_runtime_provider =
         P::create_amazon_bedrock_runtime_provider(/*aws*/ None);
 
-    // We do not want to be in the business of adjucating which third-party
-    // providers are bundled with Codex CLI, so we only include the OpenAI and
-    // open source ("oss") providers by default. Users are encouraged to add to
-    // `model_providers` in config.toml to add their own providers.
+    // Native providers share the Rust Responses transport. Additional providers
+    // can still be configured through `model_providers` in config.toml.
     [
         (OPENAI_PROVIDER_ID, openai_provider),
+        (
+            MLX_PROVIDER_ID,
+            ModelProviderInfo {
+                name: MLX_PROVIDER_NAME.into(),
+                base_url: Some(
+                    std::env::var("CODEX_MLX_BASE_URL")
+                        .ok()
+                        .filter(|value| !value.trim().is_empty())
+                        .or_else(|| {
+                            std::env::var("QWEN_API_URL")
+                                .ok()
+                                .filter(|value| !value.trim().is_empty())
+                        })
+                        .unwrap_or_else(|| "http://127.0.0.1:8080/v1".into()),
+                ),
+                env_key: std::env::var("QWEN_API_KEY")
+                    .ok()
+                    .filter(|value| !value.trim().is_empty())
+                    .map(|_| "QWEN_API_KEY".into()),
+                ..Default::default()
+            },
+        ),
+        (
+            DEEPSEEK_PROVIDER_ID,
+            ModelProviderInfo {
+                name: DEEPSEEK_PROVIDER_NAME.into(),
+                base_url: Some("https://api.deepseek.com".into()),
+                env_key: Some("DEEPSEEK_API_KEY".into()),
+                env_key_instructions: Some("Set DEEPSEEK_API_KEY to your DeepSeek API key.".into()),
+                ..Default::default()
+            },
+        ),
         (AMAZON_BEDROCK_PROVIDER_ID, amazon_bedrock_provider),
         (
             AMAZON_BEDROCK_RUNTIME_PROVIDER_ID,
@@ -685,6 +726,33 @@ pub fn merge_configured_model_providers(
     configured_model_providers: HashMap<String, ModelProviderInfo>,
 ) -> Result<HashMap<String, ModelProviderInfo>, String> {
     for (key, mut provider) in configured_model_providers {
+        if key == MLX_PROVIDER_ID {
+            provider.name = MLX_PROVIDER_NAME.into();
+            provider.requires_openai_auth = false;
+            provider.supports_websockets = false;
+            if provider.base_url.is_none() {
+                provider.base_url = model_providers
+                    .get(&key)
+                    .and_then(|default| default.base_url.clone());
+            }
+            model_providers.insert(key, provider);
+            continue;
+        }
+        if key == DEEPSEEK_PROVIDER_ID {
+            provider.name = DEEPSEEK_PROVIDER_NAME.into();
+            provider.requires_openai_auth = false;
+            provider.supports_websockets = false;
+            provider
+                .base_url
+                .get_or_insert_with(|| "https://api.deepseek.com".into());
+            if provider.experimental_bearer_token.is_none() && provider.auth.is_none() {
+                provider
+                    .env_key
+                    .get_or_insert_with(|| "DEEPSEEK_API_KEY".into());
+            }
+            model_providers.insert(key, provider);
+            continue;
+        }
         if matches!(
             key.as_str(),
             AMAZON_BEDROCK_PROVIDER_ID | AMAZON_BEDROCK_RUNTIME_PROVIDER_ID

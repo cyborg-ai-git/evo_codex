@@ -180,8 +180,21 @@ impl CatalogRequestProcessor {
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
         // Gate the same provider used by the catalog, including when its model cache is warm.
         // Resolving credentials may refresh them, but explicit host policy prevents browser login.
+        let mut config = (*self.config).clone();
+        if let Some(provider_id) = params.model_provider.as_ref() {
+            config.model_provider = config
+                .model_providers
+                .get(provider_id)
+                .cloned()
+                .ok_or_else(|| invalid_request(format!("Unknown model provider: {provider_id}")))?;
+            config.model_provider_id = provider_id.clone();
+        }
+        self.config_manager
+            .check_thread_model_provider(&config)
+            .await
+            .map_err(|err| config_load_error(&err))?;
         if let Some(gateway) = codex_model_provider::create_model_provider(
-            self.config.model_provider.clone(),
+            config.model_provider.clone(),
             Some(self.thread_manager.auth_manager()),
         )
         .gateway_auth_manager()
@@ -189,7 +202,7 @@ impl CatalogRequestProcessor {
         {
             // Refreshing credentials can contact the gateway before the catalog's own check.
             self.config_manager
-                .check_thread_model_provider(&self.config)
+                .check_thread_model_provider(&config)
                 .await
                 .map_err(|err| config_load_error(&err))?;
             if gateway.resolve_access_token().await.is_err() {
@@ -199,8 +212,8 @@ impl CatalogRequestProcessor {
                     .await
                     .map_err(|err| config_load_error(&err))?;
                 // Login RPCs use current config, while the catalog retains its startup provider.
-                if current.model_provider_id != self.config.model_provider_id
-                    || current.model_provider != self.config.model_provider
+                if current.model_provider_id != config.model_provider_id
+                    || current.model_provider != config.model_provider
                 {
                     return Err(invalid_request(
                         "Model provider settings changed. Restart Codex to apply them, then retry fetching the model list",
@@ -282,15 +295,68 @@ impl CatalogRequestProcessor {
         params: ModelListParams,
     ) -> Result<ModelListResponse, JSONRPCErrorError> {
         let ModelListParams {
+            model_provider,
             limit,
             cursor,
             include_hidden,
         } = params;
-        let presets = self
-            .model_catalog
-            .list_models(codex_models_manager::manager::RefreshStrategy::OnlineIfUncached)
-            .await
-            .map_err(|err| config_load_error(&err))?;
+        let presets = if let Some(provider_id) = model_provider {
+            let mut config = (*self.config).clone();
+            config.model_provider = config
+                .model_providers
+                .get(&provider_id)
+                .cloned()
+                .ok_or_else(|| invalid_request(format!("Unknown model provider: {provider_id}")))?;
+            config.model_provider_id = provider_id.clone();
+            self.config_manager
+                .check_thread_model_provider(&config)
+                .await
+                .map_err(|err| config_load_error(&err))?;
+            if provider_id == self.config.model_provider_id
+                && !config.model_provider.is_local_model_provider()
+            {
+                self.model_catalog
+                    .list_models(codex_models_manager::manager::RefreshStrategy::OnlineIfUncached)
+                    .await
+                    .map_err(|err| config_load_error(&err))?
+            } else if config.model_provider.is_local_model_provider() {
+                codex_model_provider::discover_local_models(
+                    &config.model_provider,
+                    config.http_client_factory(),
+                )
+                .await
+                .map_err(invalid_request)?
+                .into_iter()
+                .map(Into::into)
+                .collect()
+            } else {
+                let provider = codex_model_provider::create_model_provider(
+                    config.model_provider.clone(),
+                    Some(self.thread_manager.auth_manager()),
+                );
+                let manager = provider.models_manager_without_cache(
+                    (provider_id == self.config.model_provider_id)
+                        .then(|| config.model_catalog.clone())
+                        .flatten(),
+                );
+                manager.set_api_key_model_discovery_enabled(
+                    config
+                        .features
+                        .enabled(codex_features::Feature::ApiKeyModelDiscovery),
+                );
+                manager
+                    .list_models(
+                        codex_models_manager::manager::RefreshStrategy::Online,
+                        config.http_client_factory(),
+                    )
+                    .await
+            }
+        } else {
+            self.model_catalog
+                .list_models(codex_models_manager::manager::RefreshStrategy::OnlineIfUncached)
+                .await
+                .map_err(|err| config_load_error(&err))?
+        };
         let models = supported_models(presets, include_hidden.unwrap_or(false));
         let total = models.len();
 

@@ -1,0 +1,12 @@
+---
+source: tui/src/chatwidget/tests/model_picker_tests.rs
+assertion_line: 73
+expression: "render_bottom_popup(&chat, 100)"
+---
+  Preparing local model
+  Downloading model.safetensors · 42.0% · 0.68/1.63 GiB
+
+
+› 1. Cancel (partial files are kept for resume)
+
+  enter select · esc back

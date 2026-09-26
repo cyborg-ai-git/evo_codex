@@ -39,6 +39,101 @@ use wiremock::matchers::path;
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 const INVALID_REQUEST_ERROR_CODE: i64 = -32600;
 
+#[tokio::test]
+async fn native_provider_catalogs_are_isolated_and_support_local_ids() -> Result<()> {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [{"id": "deepseek-custom-uncensored"}, {"id": "another-local-model"}]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let codex_home = TempDir::new()?;
+    write_models_cache(codex_home.path()).await?;
+    let local_url = format!("{}/v1", server.uri());
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .with_env_overrides(&[("CODEX_OSS_BASE_URL", Some(local_url.as_str()))])
+        .build_initialized()
+        .await?;
+    let deepseek: ModelListResponse = mcp
+        .request(|request_id| ClientRequest::ModelList {
+            request_id,
+            params: ModelListParams {
+                model_provider: Some("deepseek".into()),
+                ..Default::default()
+            },
+        })
+        .await?;
+    assert_eq!(
+        deepseek
+            .data
+            .iter()
+            .map(|model| model.model.as_str())
+            .collect::<Vec<_>>(),
+        vec!["deepseek-flash", "deepseek-v4-pro"]
+    );
+    let local: ModelListResponse = mcp
+        .request(|request_id| ClientRequest::ModelList {
+            request_id,
+            params: ModelListParams {
+                model_provider: Some("ollama".into()),
+                ..Default::default()
+            },
+        })
+        .await?;
+    assert_eq!(
+        local
+            .data
+            .iter()
+            .map(|model| model.model.as_str())
+            .collect::<Vec<_>>(),
+        vec!["another-local-model", "deepseek-custom-uncensored"]
+    );
+    let openai: ModelListResponse = mcp
+        .request(|request_id| ClientRequest::ModelList {
+            request_id,
+            params: ModelListParams::default(),
+        })
+        .await?;
+    assert!(!openai.data.is_empty());
+    assert!(
+        openai
+            .data
+            .iter()
+            .all(|model| !model.model.starts_with("deepseek"))
+    );
+    let explicit_openai: ModelListResponse = mcp
+        .request(|request_id| ClientRequest::ModelList {
+            request_id,
+            params: ModelListParams {
+                model_provider: Some("openai".into()),
+                ..Default::default()
+            },
+        })
+        .await?;
+    assert_eq!(explicit_openai, openai);
+    let request_id = mcp
+        .send_list_models_request(ModelListParams {
+            model_provider: Some("unknown-provider".into()),
+            ..Default::default()
+        })
+        .await?;
+    let error = timeout(
+        DEFAULT_TIMEOUT,
+        mcp.read_stream_until_error_message(RequestId::Integer(request_id)),
+    )
+    .await??;
+    assert_eq!(error.error.code, INVALID_REQUEST_ERROR_CODE);
+    assert_eq!(
+        error.error.message,
+        "Unknown model provider: unknown-provider"
+    );
+    Ok(())
+}
+
 #[test_case(None, false, true; "default off")]
 #[test_case(None, true, true; "app rollout")]
 #[test_case(Some(false), true, true; "user opt out")]
@@ -124,6 +219,7 @@ requires_openai_auth = true
         .request(|request_id| ClientRequest::ModelList {
             request_id,
             params: ModelListParams {
+                model_provider: None,
                 limit: Some(100),
                 include_hidden: Some(true),
                 cursor: None,
@@ -244,6 +340,7 @@ async fn list_models_returns_all_models_with_large_limit() -> Result<()> {
         .request(|request_id| ClientRequest::ModelList {
             request_id,
             params: ModelListParams {
+                model_provider: None,
                 limit: Some(100),
                 cursor: None,
                 include_hidden: None,
@@ -274,6 +371,7 @@ async fn list_models_includes_hidden_models() -> Result<()> {
         .request(|request_id| ClientRequest::ModelList {
             request_id,
             params: ModelListParams {
+                model_provider: None,
                 limit: Some(100),
                 cursor: None,
                 include_hidden: Some(true),
@@ -396,6 +494,7 @@ model_catalog_url = "{server_uri}/v1/models"
         .await?;
     let request_id = mcp
         .send_list_models_request(ModelListParams {
+            model_provider: None,
             limit: Some(100),
             cursor: None,
             include_hidden: None,
@@ -479,6 +578,7 @@ async fn list_models_pagination_works() -> Result<()> {
             .request(|request_id| ClientRequest::ModelList {
                 request_id,
                 params: ModelListParams {
+                    model_provider: None,
                     limit: Some(1),
                     cursor: cursor.clone(),
                     include_hidden: None,
@@ -515,6 +615,7 @@ async fn list_models_rejects_invalid_cursor() -> Result<()> {
 
     let request_id = mcp
         .send_list_models_request(ModelListParams {
+            model_provider: None,
             limit: None,
             cursor: Some("invalid".to_string()),
             include_hidden: None,

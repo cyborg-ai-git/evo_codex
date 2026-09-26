@@ -1,0 +1,52 @@
+{
+  "repo": "zomiailabs/Qwen3.8-27B-Uncensored-MLX",
+  "revision": "4357219328269a5e7c2b5c36d9831004d5753606",
+  "files": [
+    "README.md",
+    "chat_template.jinja",
+    "config.json",
+    "generation_config.json",
+    "model-00001-of-00003.safetensors",
+    "model-00002-of-00003.safetensors",
+    "model-00003-of-00003.safetensors",
+    "model.safetensors.index.json",
+    "preprocessor_config.json",
+    "processor_config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "video_preprocessor_config.json",
+    "vocab.json"
+  ],
+  "sizes": {
+    "README.md": 10191,
+    "chat_template.jinja": 8952,
+    "config.json": 5187,
+    "generation_config.json": 202,
+    "model-00001-of-00003.safetensors": 5343268752,
+    "model-00002-of-00003.safetensors": 5354185100,
+    "model-00003-of-00003.safetensors": 5357087747,
+    "model.safetensors.index.json": 218281,
+    "preprocessor_config.json": 390,
+    "processor_config.json": 991,
+    "tokenizer.json": 19989325,
+    "tokenizer_config.json": 1165,
+    "video_preprocessor_config.json": 385,
+    "vocab.json": 6722759
+  },
+  "sha256": {
+    "model-00001-of-00003.safetensors": "014e69ab23abb0ec453346930260b2f78785c36e23b1922c6992ec6ec9732b37",
+    "model-00002-of-00003.safetensors": "3f275e43480498e0d1d113a726c746066dfab73927a22873c45a238be55cee13",
+    "model-00003-of-00003.safetensors": "ef97c143824615510df09938a188bbdf475f9e41a9475113b3fb07090c842137",
+    "tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+    "README.md": "23371624798b0b2604c77f5d6a4d05d3d3b6c30fc82a1294012868fadccf5871",
+    "chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+    "config.json": "f238d3a11e8d96b4f688fd09c627879b9b87a067835c83cb7c1c102df7aa4fb0",
+    "generation_config.json": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e",
+    "model.safetensors.index.json": "13b840162b4cb35c66fef7df072f7dbb4717908204364f5e5d9f9655a2758fa8",
+    "preprocessor_config.json": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+    "processor_config.json": "45fc17c8dd2474af6b493b52483c26c0584b0082d368c480f9fa611e73070040",
+    "tokenizer_config.json": "792fa3f0cb88b111e54ef3134c873531008c4df471d108da17903426e308aa7b",
+    "video_preprocessor_config.json": "7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13",
+    "vocab.json": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
+  }
+}

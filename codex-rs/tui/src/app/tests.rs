@@ -56,6 +56,8 @@ mod pagination_completion_tests;
 mod patch_approval_tests;
 #[path = "tests/permission_selection_tests.rs"]
 mod permission_selection_tests;
+#[path = "tests/provider_models_tests.rs"]
+mod provider_models;
 #[path = "tests/unavailable_commands_tests.rs"]
 mod unavailable_commands;
 
@@ -5993,6 +5995,8 @@ async fn make_test_app() -> Box<App> {
 
     Box::new(App {
         feature_write_lock: Arc::default(),
+        local_download: None,
+        hardware: None,
         model_catalog: chat_widget.model_catalog(),
         session_telemetry,
         app_event_tx,
@@ -6102,6 +6106,8 @@ pub(super) async fn make_test_app_with_channels() -> (
     (
         Box::new(App {
             feature_write_lock: Arc::default(),
+            local_download: None,
+            hardware: None,
             model_catalog: chat_widget.model_catalog(),
             session_telemetry,
             app_event_tx,

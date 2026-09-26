@@ -383,6 +383,7 @@ pub fn create_model_provider(
 #[derive(Clone, Debug)]
 struct ConfiguredModelProvider {
     info: ModelProviderInfo,
+    mlx_runtime: Option<Arc<crate::mlx_runtime::MlxRuntime>>,
     auth_manager: Option<Arc<AuthManager>>,
     // Construct eagerly; report setup failures when auth is requested because the factory is infallible.
     gateway_auth_manager: Option<Result<Arc<GatewayAuthManager>, String>>,
@@ -395,6 +396,10 @@ impl ConfiguredModelProvider {
         gateway_auth_manager: Option<Result<Arc<GatewayAuthManager>, String>>,
     ) -> Self {
         Self {
+            mlx_runtime: (info.name == codex_model_provider_info::MLX_PROVIDER_NAME).then(|| {
+                crate::shared_state::process_shared_state()
+                    .mlx_server(info.base_url.as_deref().unwrap_or_default())
+            }),
             info,
             auth_manager,
             gateway_auth_manager,
@@ -403,11 +408,33 @@ impl ConfiguredModelProvider {
 }
 
 impl ModelProvider for ConfiguredModelProvider {
+    fn api_provider(&self) -> ModelProviderFuture<'_, codex_protocol::error::Result<Provider>> {
+        Box::pin(async move {
+            if let Some(runtime) = &self.mlx_runtime {
+                runtime.ensure_ready(&self.info).await?;
+            }
+            let auth = self.auth().await;
+            self.info
+                .to_api_provider(auth.as_ref().map(CodexAuth::auth_mode))
+        })
+    }
+
     fn info(&self) -> &ModelProviderInfo {
         &self.info
     }
 
     fn capabilities(&self) -> ProviderCapabilities {
+        if self.info.name == codex_model_provider_info::DEEPSEEK_PROVIDER_NAME
+            || self.info.is_local_model_provider()
+        {
+            return ProviderCapabilities {
+                namespace_tools: false,
+                image_generation: false,
+                web_search: false,
+                external_web_access: false,
+                remote_compaction: RemoteCompactionSupport::Unsupported,
+            };
+        }
         let remote_compaction = if self.info.is_openai()
             || is_azure_responses_provider(&self.info.name, self.info.base_url.as_deref())
         {
@@ -423,6 +450,9 @@ impl ModelProvider for ConfiguredModelProvider {
     }
 
     fn approval_review_preferred_model(&self) -> &'static str {
+        if self.info.name == codex_model_provider_info::DEEPSEEK_PROVIDER_NAME {
+            return "deepseek-flash";
+        }
         if self
             .auth_manager
             .as_ref()
@@ -437,6 +467,22 @@ impl ModelProvider for ConfiguredModelProvider {
 
     fn auth_manager(&self) -> Option<Arc<AuthManager>> {
         self.auth_manager.clone()
+    }
+
+    fn memory_extraction_preferred_model(&self) -> &'static str {
+        if self.info.name == codex_model_provider_info::DEEPSEEK_PROVIDER_NAME {
+            "deepseek-flash"
+        } else {
+            DEFAULT_MEMORY_EXTRACTION_PREFERRED_MODEL
+        }
+    }
+
+    fn memory_consolidation_preferred_model(&self) -> &'static str {
+        if self.info.name == codex_model_provider_info::DEEPSEEK_PROVIDER_NAME {
+            "deepseek-v4-pro"
+        } else {
+            DEFAULT_MEMORY_CONSOLIDATION_PREFERRED_MODEL
+        }
     }
 
     fn gateway_auth_manager(&self) -> std::io::Result<Option<Arc<GatewayAuthManager>>> {
@@ -548,6 +594,19 @@ impl ModelProvider for ConfiguredModelProvider {
         codex_home: PathBuf,
         config_model_catalog: Option<ModelsResponse>,
     ) -> SharedModelsManager {
+        if self.info.name == codex_model_provider_info::DEEPSEEK_PROVIDER_NAME
+            && config_model_catalog.is_none()
+        {
+            return Arc::new(StaticModelsManager::new(
+                /*auth_manager*/ None,
+                codex_models_manager::deepseek::catalog(),
+            ));
+        }
+        if self.info.is_local_model_provider() && config_model_catalog.is_none() {
+            return Arc::new(crate::local_models::LocalModelsManager::new(
+                self.info.clone(),
+            ));
+        }
         match config_model_catalog {
             Some(model_catalog) => Arc::new(StaticModelsManager::new(
                 self.auth_manager.clone(),
@@ -572,6 +631,19 @@ impl ModelProvider for ConfiguredModelProvider {
         &self,
         config_model_catalog: Option<ModelsResponse>,
     ) -> SharedModelsManager {
+        if self.info.name == codex_model_provider_info::DEEPSEEK_PROVIDER_NAME
+            && config_model_catalog.is_none()
+        {
+            return Arc::new(StaticModelsManager::new(
+                /*auth_manager*/ None,
+                codex_models_manager::deepseek::catalog(),
+            ));
+        }
+        if self.info.is_local_model_provider() && config_model_catalog.is_none() {
+            return Arc::new(crate::local_models::LocalModelsManager::new(
+                self.info.clone(),
+            ));
+        }
         match config_model_catalog {
             Some(model_catalog) => Arc::new(StaticModelsManager::new(
                 self.auth_manager.clone(),
@@ -596,6 +668,12 @@ impl ModelProvider for ConfiguredModelProvider {
         config_model_catalog: Option<ModelsResponse>,
         cache: Arc<dyn ModelsCache>,
     ) -> SharedModelsManager {
+        if (self.info.name == codex_model_provider_info::DEEPSEEK_PROVIDER_NAME
+            || self.info.is_local_model_provider())
+            && config_model_catalog.is_none()
+        {
+            return self.models_manager_without_cache(None);
+        }
         match config_model_catalog {
             Some(model_catalog) => Arc::new(StaticModelsManager::new(
                 self.auth_manager.clone(),

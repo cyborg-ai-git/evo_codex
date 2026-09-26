@@ -16,6 +16,7 @@ use crate::amazon_bedrock::AwsCredentialExport;
 /// Provider-owned runtime state shared across independently configured sessions.
 #[derive(Debug, Default)]
 pub(crate) struct ModelProviderSharedState {
+    mlx_servers: Mutex<Vec<(String, Weak<crate::mlx_runtime::MlxRuntime>)>>,
     aws_credential_exports: Mutex<Vec<(ModelProviderAwsAuthInfo, Weak<AwsCredentialExport>)>>,
     aws_auth_recoveries: Mutex<Vec<(ModelProviderAwsAuthInfo, Weak<AwsAuthRecovery>)>>,
     gateway_managers: Mutex<
@@ -33,6 +34,24 @@ pub(crate) fn process_shared_state() -> &'static ModelProviderSharedState {
 }
 
 impl ModelProviderSharedState {
+    pub(crate) fn mlx_server(&self, base_url: &str) -> Arc<crate::mlx_runtime::MlxRuntime> {
+        let mut servers = self
+            .mlx_servers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        servers.retain(|(_, server)| server.strong_count() != 0);
+        if let Some(server) = servers
+            .iter()
+            .find(|(url, _)| url == base_url)
+            .and_then(|(_, server)| server.upgrade())
+        {
+            return server;
+        }
+        let server = Arc::new(crate::mlx_runtime::MlxRuntime::default());
+        servers.push((base_url.to_owned(), Arc::downgrade(&server)));
+        server
+    }
+
     pub(crate) fn gateway_auth(
         &self,
         config: &GatewayOAuthConfig,

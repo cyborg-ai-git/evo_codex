@@ -347,6 +347,8 @@ impl PtyCodex {
             .arg("-C")
             .arg(repo_root)
             .env("TERM", "xterm-256color")
+            // Host telemetry has separate coverage; keep startup snapshots deterministic.
+            .env("EVO_CODEX_HARDWARE_PANEL", "0")
             // This PTY answers its own capability probes; it is not inside the caller's mux.
             .env_remove("TMUX")
             .env_remove("TMUX_PANE")

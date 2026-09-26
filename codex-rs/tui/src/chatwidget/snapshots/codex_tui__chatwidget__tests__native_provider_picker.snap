@@ -1,0 +1,16 @@
+---
+source: tui/src/chatwidget/tests/model_picker_tests.rs
+assertion_line: 26
+expression: "render_bottom_popup(&chat, 100)"
+---
+  Select Model Provider
+  Changing provider starts a new task; previous tasks remain resumable.
+
+
+› 1. OpenAI (current)    ChatGPT and OpenAI API models
+  2. DeepSeek API        DeepSeek Flash and V4 Pro · DEEPSEEK_API_KEY
+  3. Local · MLX / Qwen  Discover downloaded MLX models and the local server
+  4. Local · Ollama      Discover installed models, including custom fine-tunes
+  5. Local · LM Studio   Discover models served by LM Studio
+
+  enter select · esc back

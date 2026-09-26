@@ -4,6 +4,10 @@
 
 export type ModelListParams = {
 /**
+ * Discover models for a configured provider without changing the active task.
+ */
+modelProvider?: string | null,
+/**
  * Opaque pagination cursor returned by a previous call.
  */
 cursor?: string | null,

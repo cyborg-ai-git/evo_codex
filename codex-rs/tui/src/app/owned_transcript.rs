@@ -67,6 +67,15 @@ impl App {
         tui: &mut tui::Tui,
         screen_size: Size,
     ) -> Result<Rect> {
+        let hardware = self.hardware.as_ref().and_then(|monitor| {
+            crate::hardware::panel_area(screen_size).map(|area| (monitor.snapshot(), area))
+        });
+        let screen_size = Size {
+            width: hardware
+                .as_ref()
+                .map_or(screen_size.width, |(_, area)| area.x),
+            ..screen_size
+        };
         self.chat_widget.sync_warnings(&self.transcript_cells);
         let motion = MotionMode::from_animations_enabled(
             self.local_settings.tui.animations && self.local_settings.tui.effects.shimmer,
@@ -203,6 +212,9 @@ impl App {
                 footer_height_changed = false;
             }
             bottom.render(bottom_area, frame.buffer);
+            if let Some((metrics, area)) = hardware.as_ref() {
+                crate::hardware::render(metrics, *area, frame.buffer);
+            }
             let follow_area = if let Some(gap) = composer_gap.as_ref() {
                 Some(Rect {
                     width: transcript_width,

@@ -50,6 +50,10 @@ async fn choose_model(
     model: &str,
     key: KeyCode,
 ) -> Result<usize> {
+    if render_bottom_popup(&app.chat_widget, /*width*/ 80).contains("Select Model Provider") {
+        // Choose OpenAI, then supply this test's model catalog below.
+        app.chat_widget.handle_key_event(KeyCode::Enter.into());
+    }
     let mut preset = crate::test_support::TEST_MODEL_PRESETS[0].clone();
     preset.model = model.into();
     preset.display_name = model.into();
@@ -396,7 +400,6 @@ async fn only_confirmed_picker_model_changes_can_arm_the_sparkle() -> Result<()>
         type_into(&mut app.chat_widget, "/model");
         app.chat_widget.handle_key_event(KeyCode::Enter.into());
         assert!(app.chat_widget.has_active_view());
-
         match completion {
             "esc" | "ctrl_c" => {
                 let key = if completion == "esc" {
